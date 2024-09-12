@@ -854,3 +854,41 @@ func startAgentWithBackoff(agentID string) {
         time.Sleep(time.Duration(rand.Intn(5)+5) * time.Second)
     }
 }
+
+// exponentialBackoffRetry retries the function with increasing delays
+func exponentialBackoffRetry(attempts int, baseDelay time.Duration, fn func() error) error {
+    var err error
+    delay := baseDelay
+    for i := 0; i < attempts; i++ {
+        err = fn()
+        if err == nil {
+            return nil
+        }
+
+        log.Printf("Attempt %d failed, retrying in %v...\n", i+1, delay)
+        time.Sleep(delay)
+        delay *= 2 // Exponentially increase the delay
+    }
+    return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+}
+
+// Updated startAgent function with exponential backoff retry
+func startAgentWithBackoff(agentID string) {
+    for {
+        stats := generateRandomStats()
+
+        // Retry with exponential backoff for up to 5 attempts
+        err := exponentialBackoffRetry(5, 1*time.Second, func() error {
+            return sendStats(agentID, stats)
+        })
+
+        // ERROR HANDLING: If sending stats failed after retries
+        if err != nil {
+            log.Printf("Failed to send stats from %s after retries: %v\n", agentID, err)
+        }
+        // ERROR HANDLING ENDS
+
+        // Sleep before sending the next set of stats
+        time.Sleep(time.Duration(rand.Intn(5)+5) * time.Second)
+    }
+}
